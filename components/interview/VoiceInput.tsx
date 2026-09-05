@@ -149,19 +149,8 @@ export function VoiceInput({
     if (!DEEPGRAM_API_KEY) {
       setIsRecording(true);
       setSeconds(0);
-      setStatusText("Demo Listening... (mock)");
+      setStatusText("Demo Listening...");
       pushConnectionState("listening");
-
-      mockTimerRef.current = window.setInterval(() => {
-        const mockText =
-          MOCK_TRANSCRIPTS[mockCursorRef.current % MOCK_TRANSCRIPTS.length];
-        mockCursorRef.current += 1;
-        fullTranscriptRef.current = appendChunkWithPunctuation(
-          fullTranscriptRef.current,
-          mockText,
-        );
-        onTranscriptFinal?.(fullTranscriptRef.current);
-      }, 2500);
       return;
     }
 
