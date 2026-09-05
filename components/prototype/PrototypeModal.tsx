@@ -12,6 +12,7 @@ type PrototypeModalProps = {
   open: boolean;
   meetingId: string | null;
   prototypeUrl: string | null;
+  transcriptText: string | null;
   isLoading: boolean;
   onClose: () => void;
 };
@@ -20,6 +21,7 @@ export function PrototypeModal({
   open,
   meetingId,
   prototypeUrl,
+  transcriptText,
   isLoading,
   onClose,
 }: PrototypeModalProps) {
@@ -69,12 +71,24 @@ export function PrototypeModal({
       setSpecError("meeting_id 無效，請先生成 Prototype 後再試一次。");
       return;
     }
+    const normalizedPrototypeUrl = prototypeUrl?.trim();
+    if (!normalizedPrototypeUrl) {
+      setSpecError("尚未取得有效 prototypes，請先重新生成 Prototype。");
+      return;
+    }
+    const normalizedTranscriptText = transcriptText?.trim();
+    if (!normalizedTranscriptText) {
+      setSpecError("尚未取得逐字稿內容，請先同步 Transcript。");
+      return;
+    }
 
     setIsGeneratingSpecs(true);
     setSpecError(null);
     try {
       const result = await generateMeetingSpecs(meetingId, {
         roles: selectedRoles,
+        transcript: normalizedTranscriptText,
+        prototypes: normalizedPrototypeUrl,
       });
       setSpecResults(result.response ?? []);
       setPreferredSpecRole(result.response?.[0]?.role ?? null);
@@ -87,7 +101,7 @@ export function PrototypeModal({
     } finally {
       setIsGeneratingSpecs(false);
     }
-  }, [meetingId, selectedRoles]);
+  }, [meetingId, prototypeUrl, selectedRoles, transcriptText]);
 
   if (!open) {
     return null;

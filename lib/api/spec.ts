@@ -2,13 +2,15 @@
  * @Author: Fangyu Kung
  * @Date: 2026-09-05 13:31:36
  * @LastEditors: Do not edit
- * @LastEditTime: 2026-09-06 02:02:50
+ * @LastEditTime: 2026-09-06 04:06:12
  * @FilePath: /beachcomber-fe/lib/api/spec.ts
  */
 export type SpecGenerationRole = "pm" | "eng" | "ui" | "qa";
 
 export type MeetingSpecsRequest = {
   roles: SpecGenerationRole[];
+  transcript: string;
+  prototypes: string;
 };
 
 export type MeetingSpecsItem = {
@@ -25,7 +27,7 @@ export async function generateMeetingSpecs(
   payload: MeetingSpecsRequest,
 ): Promise<MeetingSpecsResponse> {
   const response = await fetch(
-    `/api/meetings/${encodeURIComponent(meetingId)}/specs`,
+    `https://beachcomber-be-1021189182492.asia-east1.run.app/api/meetings/${encodeURIComponent(meetingId)}/specs`,
     {
       method: "POST",
       headers: {
@@ -52,7 +54,7 @@ export async function generateSpecsFromPrototype(payload: {
 
 export async function exportSpecsDocument(payload: {
   format: "pdf" | "doc";
-  role: SpecGenerationRole | "uiux" | "frontend" | "backend" | "sa";
+  role: SpecGenerationRole;
 }) {
   // API TODO: POST /api/specs/export
   return Promise.resolve({ ok: true, ...payload });

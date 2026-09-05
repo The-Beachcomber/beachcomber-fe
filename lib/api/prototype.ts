@@ -9,7 +9,7 @@ export async function generatePrototype(
   payload: MeetingTranscriptPayload,
 ): Promise<MeetingPrototypeResponse> {
   const response = await fetch(
-    `/api/meetings/${encodeURIComponent(meetingId)}/prototypes`,
+    `https://beachcomber-be-1021189182492.asia-east1.run.app/api/meetings/${encodeURIComponent(meetingId)}/prototypes`,
     {
       method: "POST",
       headers: {

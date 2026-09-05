@@ -118,6 +118,9 @@ export default function Home() {
   const [isPrototypeOpen, setIsPrototypeOpen] = useState(false);
   const [prototypeModalSeed, setPrototypeModalSeed] = useState(0);
   const [prototypeUrl, setPrototypeUrl] = useState<string | null>(null);
+  const [prototypeTranscriptText, setPrototypeTranscriptText] = useState<
+    string | null
+  >(null);
   const [isPrototypeLoading, setIsPrototypeLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<
     "idle" | "connecting" | "listening" | "error"
@@ -455,6 +458,7 @@ export default function Home() {
     };
 
     setPrototypeUrl(null);
+    setPrototypeTranscriptText(transcriptPayload.text || null);
     setIsPrototypeLoading(true);
     setPrototypeModalSeed((prev) => prev + 1);
     setIsPrototypeOpen(true);
@@ -572,6 +576,7 @@ export default function Home() {
         open={isPrototypeOpen}
         meetingId={MEETING_ID_PATTERN.test(meetingId) ? meetingId : null}
         prototypeUrl={prototypeUrl}
+        transcriptText={prototypeTranscriptText}
         isLoading={isPrototypeLoading}
         onClose={() => setIsPrototypeOpen(false)}
       />

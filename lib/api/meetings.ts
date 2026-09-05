@@ -1,5 +1,3 @@
-import { mockMeetingTranscriptResponse } from "@/lib/mock-data";
-
 export type MeetingTranscriptPayload = {
   text: string;
 };
@@ -21,16 +19,8 @@ export async function postMeetingTranscript(
   meetingId: string,
   payload: MeetingTranscriptPayload,
 ): Promise<MeetingTranscriptResponse | null> {
-  if (process.env.NEXT_PUBLIC_USE_MOCK_MEETING_API === "true") {
-    return {
-      ...mockMeetingTranscriptResponse,
-      created_at: new Date().toISOString(),
-      path: `mock://meetings/${meetingId}/transcript`,
-    } as MeetingTranscriptResponse;
-  }
-
   const response = await fetch(
-    `/api/meetings/${encodeURIComponent(meetingId)}/transcript`,
+    `https://beachcomber-be-1021189182492.asia-east1.run.app/api/meetings/${encodeURIComponent(meetingId)}/transcript`,
     {
       method: "POST",
       headers: {
