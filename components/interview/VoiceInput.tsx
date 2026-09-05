@@ -64,7 +64,6 @@ export function VoiceInput({
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const keepAliveTimerRef = useRef<number | null>(null);
   const mockTimerRef = useRef<number | null>(null);
-  const mockCursorRef = useRef(0);
   const fullTranscriptRef = useRef("");
   const lastFinalChunkRef = useRef("");
 
@@ -142,10 +141,7 @@ export function VoiceInput({
     lastFinalChunkRef.current = "";
 
     if (!DEEPGRAM_API_KEY) {
-      setIsRecording(true);
-      setSeconds(0);
-      setStatusText("Demo Listening...");
-      pushConnectionState("listening");
+      alert("DEEPGRAM_API_KEY is not set");
       return;
     }
 
