@@ -566,6 +566,7 @@ export default function Home() {
       <PrototypeModal
         key={prototypeModalSeed}
         open={isPrototypeOpen}
+        meetingId={MEETING_ID_PATTERN.test(meetingId) ? meetingId : null}
         prototypeUrl={prototypeUrl}
         isLoading={isPrototypeLoading}
         onClose={() => setIsPrototypeOpen(false)}

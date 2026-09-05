@@ -2,32 +2,35 @@
 
 import { Button } from "@/components/ui/button";
 import { exportSpecsDocument } from "@/lib/api";
-import type { SpecMap, SpecRole } from "@/lib/studio-types";
+import type { SpecGenerationRole } from "@/lib/api/spec";
 import { useMemo, useState } from "react";
 
-const ROLE_TABS: Array<{ key: SpecRole; label: string }> = [
+const ROLE_TABS: Array<{ key: SpecGenerationRole; label: string }> = [
   { key: "pm", label: "📋 PM" },
-  { key: "uiux", label: "🎨 UI/UX" },
-  { key: "frontend", label: "💻 Frontend" },
-  { key: "backend", label: "⚙️ Backend" },
-  { key: "sa", label: "🛡️ SA" },
+  { key: "ui", label: "🎨 UI" },
+  { key: "eng", label: "💻 ENG" },
+  { key: "qa", label: "🧪 QA" },
 ];
 
 type SpecViewerProps = {
-  specs: SpecMap;
+  specs: Partial<Record<SpecGenerationRole, string>>;
+  initialRole?: SpecGenerationRole;
 };
 
-export function SpecViewer({ specs }: SpecViewerProps) {
-  const [activeRole, setActiveRole] = useState<SpecRole>("pm");
-  const activeMarkdown = useMemo(() => specs[activeRole], [activeRole, specs]);
+export function SpecViewer({ specs, initialRole = "pm" }: SpecViewerProps) {
+  const [activeRole, setActiveRole] = useState<SpecGenerationRole>(initialRole);
+  const activeSpecUrl = useMemo(
+    () => specs[activeRole] ?? "",
+    [activeRole, specs],
+  );
 
-  const handleCopyMarkdown = async () => {
+  const handleCopySpecUrl = async () => {
     if (!navigator.clipboard?.writeText) {
       window.alert("目前環境不支援 Clipboard API，請手動複製內容。");
       return;
     }
 
-    await navigator.clipboard.writeText(activeMarkdown);
+    await navigator.clipboard.writeText(activeSpecUrl);
   };
 
   return (
@@ -48,13 +51,15 @@ export function SpecViewer({ specs }: SpecViewerProps) {
         <div className="flex items-center gap-2">
           <Button
             variant="outline"
-            onClick={handleCopyMarkdown}
+            onClick={() => void handleCopySpecUrl()}
+            disabled={!activeSpecUrl}
             className="py-1.5 text-xs"
           >
-            📋 複製 Markdown
+            📋 複製 Spec URL
           </Button>
           <Button
             variant="outline"
+            disabled={!activeSpecUrl}
             className="py-1.5 text-xs"
             onClick={() => {
               void exportSpecsDocument({ format: "pdf", role: activeRole });
@@ -66,10 +71,33 @@ export function SpecViewer({ specs }: SpecViewerProps) {
         </div>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto p-4">
-        <pre className="whitespace-pre-wrap font-mono text-sm leading-relaxed text-slate-200">
-          {activeMarkdown}
-        </pre>
+      <div className="min-h-0 flex-1 p-4">
+        {activeSpecUrl ? (
+          <div className="flex h-full min-h-0 flex-col gap-2">
+            <a
+              href={activeSpecUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-emerald-300 underline underline-offset-2"
+            >
+              開新分頁開啟 Spec
+            </a>
+            <div className="min-h-0 flex-1 overflow-hidden rounded-xl border border-white/10 bg-white">
+              <iframe
+                title={`${activeRole}-spec-preview`}
+                src={activeSpecUrl}
+                className="h-full w-full"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="grid h-full place-items-center rounded-xl border border-white/10 bg-slate-900/60 p-6 text-center">
+            <p className="text-sm text-slate-400">
+              目前沒有 {activeRole.toUpperCase()} 的 Spec。
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );
