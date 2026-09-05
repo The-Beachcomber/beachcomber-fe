@@ -16,13 +16,8 @@ type VoiceInputProps = {
   onConnectionChange?: (state: VoiceConnectionState) => void;
 };
 
-const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
-const MOCK_TRANSCRIPTS = [
-  "我們希望先定義 MVP 的核心流程，避免 scope 過大。",
-  "第一版請優先支援 dashboard 與登入註冊流程。",
-  "Prototype 需要同時輸出 PM 與 Frontend 可執行規格。",
-  "請把風險與技術限制整理成可追蹤項目。",
-];
+const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
+
 const END_PUNCTUATION_REGEX = /[。！？.!?，、；;：:]$/;
 const START_PUNCTUATION_REGEX = /^[，。！？.!?、；;：:]/;
 
