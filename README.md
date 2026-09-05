@@ -76,7 +76,7 @@ flowchart LR
 | 後端 | aiohttp | Hermes 公開包裝層（`public_startup.py`） |
 | 基礎設施 | Google Cloud Run（asia-east1）、Cloud Storage、Artifact Registry | 後端與 AI 服務部署、產出檔案託管 |
 | 基礎設施 | Vercel | 前端部署 |
-| Sponsor 技術 | TODO：請填入本次活動 sponsor 提供的技術與對應用途 | TODO |
+| Sponsor 技術 | 未使用 | — |
 
 ## 安裝與執行
 
@@ -124,8 +124,8 @@ gcloud run deploy beachcomber-be \
 
 ## 作品展示
 
-- 作品展示網址：https://beachcomber-fe.vercel.app
-- 評選影片：TODO：請填入影片連結
+- 作品展示網址：https://beachcomber-l09v59cby-kungfangyus-projects.vercel.app/
+- 評選影片：（待補上連結）
 
 ## 限制與未來工作
 
@@ -151,7 +151,6 @@ gcloud run deploy beachcomber-be \
 | 項目 | 來源／連結 | 授權／使用方式 |
 | --- | --- | --- |
 | Deepgram Speech-to-Text | https://deepgram.com | 商業 API，依官方條款使用，需自備 API key（以環境變數提供，未進版控） |
-| Hermes Agent Platform | 本次活動提供之 API Server（`hackathon-hermes` 為其公開包裝層） | 依活動提供之使用條款；TODO：確認正式名稱與授權標示 |
 | Google Cloud Run / Cloud Storage | https://cloud.google.com | 商業雲端服務，依官方條款使用 |
 | Vercel | https://vercel.com | 前端託管，依官方條款使用 |
 | Next.js | https://github.com/vercel/next.js | MIT |
@@ -162,15 +161,20 @@ gcloud run deploy beachcomber-be \
 | Geist 字型 | https://vercel.com/font | SIL Open Font License 1.1 |
 | 圖示素材（`public/*.svg`） | Next.js／Vercel 官方範本 | 依 Next.js 專案授權 |
 
+Hermes agent 服務（`hackathon-hermes`）由本隊自行提供與部署於自有 GCP 專案，不屬於第三方服務。
+
 本 repo 不包含任何客戶真實資料；Demo 使用的逐字稿為自行撰寫的情境範例。
 
 ## 團隊成員
 
 | 姓名 | 分工 |
 | --- | --- |
-| Fangyu Kung | 前端開發（TODO：確認完整分工） |
-| TODO | TODO |
+| 劉碩亭 | 後端開發：訪談 API 設計、對話記憶與錯誤處理、介面定義 |
+| 龔芳俞 | 前端開發：Next.js 訪談工作台、Deepgram 即時逐字稿串接、Prototype／Spec 預覽介面 |
+| 黃郁庭 | 需求整合：訪談情境與 Demo 腳本設計、產出內容驗收、評選影片製作 |
+| 周姵萱 | 後端開發：服務實作與整合、Hermes 串接驗證、跨端問題釐清與串接 |
+| 吳晉安 | AI 服務與部署：Hermes agent 包裝層、Prototype／Spec 提示詞設計、Cloud Run／GCS 部署 |
 
 ## License
 
-TODO：本 repo 尚未加入 `LICENSE` 檔案。請於根目錄新增授權檔（例如 MIT），並在此標示授權名稱。
+MIT License，全文見根目錄 [`LICENSE`](LICENSE)。
