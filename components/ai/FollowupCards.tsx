@@ -2,16 +2,18 @@
  * @Author: Fangyu Kung
  * @Date: 2026-09-05 11:44:01
  * @LastEditors: Do not edit
- * @LastEditTime: 2026-09-05 12:36:14
+ * @LastEditTime: 2026-09-06 02:16:48
  * @FilePath: /beachcomber-fe/components/ai/FollowupCards.tsx
  */
 "use client";
 
+import type { MeetingQuestionItem } from "@/lib/api/meetings";
 import type { FollowupSuggestion } from "@/lib/studio-types";
 import { motion } from "framer-motion";
 
 type FollowupCardsProps = {
   suggestions: FollowupSuggestion[];
+  questionItems?: MeetingQuestionItem[];
   isAnalyzing: boolean;
   onAdoptSuggestion: (id: string) => void;
   onDismissSuggestion: (id: string) => void;
@@ -19,11 +21,14 @@ type FollowupCardsProps = {
 
 export function FollowupCards({
   suggestions,
+  questionItems = [],
   isAnalyzing,
-  onAdoptSuggestion,
-  onDismissSuggestion,
 }: FollowupCardsProps) {
-  if (suggestions.length === 0) {
+  const validQuestionItems = questionItems.filter((item) =>
+    Boolean(item.question?.trim()),
+  );
+
+  if (suggestions.length === 0 && validQuestionItems.length === 0) {
     return (
       <div className="glass-panel flex h-full items-center justify-center rounded-2xl p-6 text-center">
         <div className="space-y-3">
@@ -54,40 +59,25 @@ export function FollowupCards({
       </div>
 
       <div className="space-y-3">
-        {suggestions.map((card) => (
-          <motion.div
-            key={card.id}
-            layout
-            className="rounded-xl border border-white/10 bg-slate-900/70 p-3"
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-          >
-            <p className="text-sm leading-relaxed text-slate-100">
-              {card.question}
+        {validQuestionItems.length > 0 && (
+          <div className="space-y-2 rounded-xl border border-indigo-400/20 bg-indigo-500/5 p-3">
+            <p className="text-[11px] uppercase tracking-[0.18em] text-indigo-200/90">
+              Meeting Questions
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => onAdoptSuggestion(card.id)}
-                className="rounded-lg border border-indigo-400/40 bg-indigo-500/10 px-2.5 py-1 text-xs text-indigo-200 hover:bg-indigo-500/20"
-              >
-                ➕ 採納並補充到對話
-              </button>
-              <button
-                type="button"
-                onClick={() => onDismissSuggestion(card.id)}
-                className="rounded-lg border border-white/15 px-2.5 py-1 text-xs text-slate-300 hover:bg-white/5"
-              >
-                ❌ 忽略
-              </button>
-              <input
-                placeholder="✍️ 快捷回覆..."
-                className="min-w-37.5 flex-1 rounded-lg border border-white/10 bg-slate-950/70 px-2 py-1 text-xs text-slate-200 outline-none focus:border-indigo-400"
-                // API TODO: submit quick answer to AI context (POST /api/sessions/:id/suggestions/:id/reply)
-              />
+            <div className="space-y-2">
+              {validQuestionItems.map((item, index) => (
+                <div
+                  key={item.entry_id ?? `meeting-question-${index + 1}`}
+                  className="rounded-lg border border-white/10 bg-slate-900/70 p-2.5"
+                >
+                  <p className="text-xs leading-relaxed text-slate-100">
+                    {item.question}
+                  </p>
+                </div>
+              ))}
             </div>
-          </motion.div>
-        ))}
+          </div>
+        )}
       </div>
     </div>
   );

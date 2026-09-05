@@ -113,6 +113,7 @@ export default function Home() {
   const [sessionTitle, setSessionTitle] = useState("Unsaved Interview Session");
   const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
   const [suggestions, setSuggestions] = useState<FollowupSuggestion[]>([]);
+  const [questionItems, setQuestionItems] = useState<MeetingQuestionItem[]>([]);
   const [focusSignal, setFocusSignal] = useState(0);
   const [isPrototypeOpen, setIsPrototypeOpen] = useState(false);
   const [prototypeModalSeed, setPrototypeModalSeed] = useState(0);
@@ -209,6 +210,7 @@ export default function Home() {
     setSessionTitle(selected.title);
     setTranscript(selected.transcriptHistory);
     setSuggestions(selected.aiSuggestions);
+    setQuestionItems([]);
   };
 
   const handleCreateSession = () => {
@@ -231,6 +233,7 @@ export default function Home() {
     setSessionTitle(newSession.title);
     setTranscript([]);
     setSuggestions([]);
+    setQuestionItems([]);
     setFocusSignal((prev) => prev + 1);
     resetMeetingId();
   };
@@ -417,9 +420,9 @@ export default function Home() {
     }
 
     const transcriptPost = await postTranscript({ text: transcriptText });
-    setSuggestions(
-      mapMeetingQuestionsToSuggestions(transcriptPost.result?.questions),
-    );
+    const nextQuestions = transcriptPost.result?.questions ?? [];
+    setQuestionItems(nextQuestions);
+    setSuggestions(mapMeetingQuestionsToSuggestions(nextQuestions));
   }, [postTranscript]);
 
   useEffect(() => {
@@ -556,6 +559,7 @@ export default function Home() {
           <section className="min-w-0 flex-1">
             <FollowupCards
               suggestions={suggestions}
+              questionItems={questionItems}
               isAnalyzing={isPostingTranscript || transcript.length > 0}
               onAdoptSuggestion={handleAdoptSuggestion}
               onDismissSuggestion={handleDismissSuggestion}
