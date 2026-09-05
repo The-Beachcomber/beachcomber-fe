@@ -46,6 +46,7 @@ const AUTO_TITLE_PATTERNS = [
   /^New Session #\d+$/,
 ];
 const VOICE_TRANSCRIPT_LINE_ID = "voice-live-transcript";
+const MEETING_ID_PATTERN = /^\d{4}_\d{2}_\d{2}_\d{4}_[A-Z2-9]{6}$/;
 
 function buildNewSessionTitle(list: Session[]) {
   return `New Session #${String(list.length + 1).padStart(2, "0")}`;
@@ -115,6 +116,8 @@ export default function Home() {
   const [focusSignal, setFocusSignal] = useState(0);
   const [isPrototypeOpen, setIsPrototypeOpen] = useState(false);
   const [prototypeModalSeed, setPrototypeModalSeed] = useState(0);
+  const [prototypeUrl, setPrototypeUrl] = useState<string | null>(null);
+  const [isPrototypeLoading, setIsPrototypeLoading] = useState(false);
   const [voiceState, setVoiceState] = useState<
     "idle" | "connecting" | "listening" | "error"
   >("idle");
@@ -438,15 +441,35 @@ export default function Home() {
   }, [voiceState, syncQuestionsFromTranscript]);
 
   const handleGeneratePrototype = async () => {
-    await generatePrototype({
-      sessionId: activeSessionId,
-      transcriptWordCount: wordCount,
-    });
-    console.log("[Rapid Prototyping AI Studio] open modal", {
-      meetingId,
-    });
+    const effectiveMeetingId = MEETING_ID_PATTERN.test(meetingId)
+      ? meetingId
+      : resetMeetingId();
+    const transcriptPayload = {
+      text: transcript
+        .map((line) => line.text.trim())
+        .filter(Boolean)
+        .join("\n"),
+    };
+
+    setPrototypeUrl(null);
+    setIsPrototypeLoading(true);
     setPrototypeModalSeed((prev) => prev + 1);
     setIsPrototypeOpen(true);
+
+    try {
+      const result = await generatePrototype(
+        effectiveMeetingId,
+        transcriptPayload,
+      );
+      setPrototypeUrl(result.prototypes);
+      console.log("[Rapid Prototyping AI Studio] prototype loaded", {
+        meetingId: effectiveMeetingId,
+      });
+    } catch (error) {
+      console.error("[Rapid Prototyping AI Studio] prototype failed", error);
+    } finally {
+      setIsPrototypeLoading(false);
+    }
   };
 
   return (
@@ -487,12 +510,14 @@ export default function Home() {
             <div className="glass-panel rounded-2xl p-4">
               <Button
                 className="w-full py-3 font-semibold"
-                disabled={isPostingTranscript}
+                disabled={isPostingTranscript || isPrototypeLoading}
                 onClick={() => void handleGeneratePrototype()}
               >
                 {isPostingTranscript
                   ? "同步逐字稿中..."
-                  : "生成 Prototype (Generate Prototype)"}
+                  : isPrototypeLoading
+                    ? "Prototype 生成中..."
+                    : "生成 Prototype (Generate Prototype)"}
               </Button>
               <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
                 <span>{wordCount} words in transcript</span>
@@ -541,6 +566,8 @@ export default function Home() {
       <PrototypeModal
         key={prototypeModalSeed}
         open={isPrototypeOpen}
+        prototypeUrl={prototypeUrl}
+        isLoading={isPrototypeLoading}
         onClose={() => setIsPrototypeOpen(false)}
       />
     </div>
