@@ -16,7 +16,8 @@ type VoiceInputProps = {
   onConnectionChange?: (state: VoiceConnectionState) => void;
 };
 
-const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
+// const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
+const DEEPGRAM_API_KEY = "528584e3e8c1f032b8fb8b3cbb215ecf6f70def5"; // Important: This is a test key for development purposes.
 
 const END_PUNCTUATION_REGEX = /[。！？.!?，、；;：:]$/;
 const START_PUNCTUATION_REGEX = /^[，。！？.!?、；;：:]/;
