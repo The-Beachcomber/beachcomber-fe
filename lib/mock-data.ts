@@ -156,3 +156,72 @@ flowchart LR
 - LLM provider
 - Analytics events`,
 };
+
+export const mockMeetingTranscriptResponse = {
+  round: 0,
+  created_at: "2026-09-05T07:37:08.943Z",
+  path: "mock://meetings/2026_09_05_1530_AB12CD/transcript",
+  verified_count: 1,
+  questions: [
+    {
+      entry_id: "TKT-002",
+      question:
+        "你提到要看毛利。寄杯券售出時認列為合約負債，此時點沒有成本可對應，要改看核銷後毛利嗎？",
+      trace: "verified",
+      confidence: "low",
+      downgraded: true,
+      verdict: "blocked",
+      axis: "sys",
+      origin: "accounting",
+      fact: "預收性質的寄杯款在售出時認列為合約負債，履約義務尚未滿足。",
+      impact: "任何以「售出」為時點的損益欄位在此資料層級無法計算。",
+      source_ref: "SRC-002",
+      source: {
+        title: "IFRS 15 客戶合約之收入",
+        locator: "待填",
+        status: "unverified",
+      },
+      note: "此條目的出處尚未查證，信心等級已降級。",
+    },
+    {
+      entry_id: "TKT-003",
+      question:
+        "若要看門市貢獻，是否要拆成銷售時點 KPI 與核銷時點 KPI 兩套儀表板？",
+      trace: "verified",
+      confidence: "medium",
+      downgraded: false,
+      verdict: "open",
+      axis: "biz",
+      origin: "analytics",
+      fact: "同一筆交易在不同認列時點會得到不同經營意義。",
+      impact: "若 KPI 不拆分，可能誤判店效或促銷成效。",
+      source_ref: "SRC-003",
+      source: {
+        title: "Management Reporting Guideline",
+        locator: "Section 4.2",
+        status: "verified",
+      },
+      note: "建議與財會及營運共同對齊。",
+    },
+    {
+      entry_id: "TKT-004",
+      question:
+        "你希望 Follow-up 問題依風險等級排序，還是依產品流程（訪談 -> 設計 -> 開發）排序？",
+      trace: "verified",
+      confidence: "high",
+      downgraded: false,
+      verdict: "open",
+      axis: "product",
+      origin: "workflow",
+      fact: "排序策略會影響決策節奏與使用者注意力。",
+      impact: "未定義排序可能讓高風險議題被延後處理。",
+      source_ref: "SRC-004",
+      source: {
+        title: "Product Discovery Playbook",
+        locator: "Chapter 2",
+        status: "verified",
+      },
+      note: "可先以風險優先，後續再提供切換。",
+    },
+  ],
+};

@@ -2,6 +2,7 @@
 
 import { SpecViewer } from "@/components/spec/SpecViewer";
 import { Button } from "@/components/ui/button";
+import { generateSpecsFromPrototype } from "@/lib/api";
 import { mockSpecs } from "@/lib/mock-data";
 import { motion } from "framer-motion";
 import { useMemo, useState } from "react";
@@ -181,8 +182,13 @@ export function PrototypeModal({ open, onClose }: PrototypeModalProps) {
               <div className="flex items-center gap-2">
                 <Button variant="outline">💬 提出修改意見 (Re-generate)</Button>
                 <Button
-                  // API TODO: POST /api/specs/generate after prototype is confirmed
-                  onClick={() => setStage("spec")}
+                  onClick={() => {
+                    void generateSpecsFromPrototype({
+                      sessionId: null,
+                      stage: "preview-confirmed",
+                    });
+                    setStage("spec");
+                  }}
                 >
                   ✅ 確認 Prototype 無誤，產出 Spec
                 </Button>

@@ -7,13 +7,26 @@ import { VoiceInput } from "@/components/interview/VoiceInput";
 import { Sidebar } from "@/components/layout/Sidebar";
 import { PrototypeModal } from "@/components/prototype/PrototypeModal";
 import { Button } from "@/components/ui/button";
-import { sessions as sessionMock } from "@/lib/mock-data";
+import { useMeetingTranscript } from "@/hooks/useMeetingTranscript";
+import {
+  appendTranscriptLine,
+  createSession as createSessionApi,
+  deleteSessionById,
+  fetchSessionById,
+  generatePrototype,
+  renameSession as renameSessionApi,
+  restorePrototypeById,
+  updateSession,
+  updateSuggestionStatus,
+  updateTranscriptLine,
+} from "@/lib/api";
+import type { MeetingQuestionItem } from "@/lib/api/meetings";
 import type {
   FollowupSuggestion,
   Session,
   TranscriptEntry,
 } from "@/lib/studio-types";
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const prototypeArchive = [
   {
@@ -32,6 +45,7 @@ const AUTO_TITLE_PATTERNS = [
   /^Unsaved Interview Session$/,
   /^New Session #\d+$/,
 ];
+const VOICE_TRANSCRIPT_LINE_ID = "voice-live-transcript";
 
 function buildNewSessionTitle(list: Session[]) {
   return `New Session #${String(list.length + 1).padStart(2, "0")}`;
@@ -39,6 +53,17 @@ function buildNewSessionTitle(list: Session[]) {
 
 function isAutoManagedTitle(title: string) {
   return AUTO_TITLE_PATTERNS.some((pattern) => pattern.test(title));
+}
+
+function createLocalId(prefix: string) {
+  const randomUUID = (
+    globalThis.crypto as (Crypto & { randomUUID?: () => string }) | undefined
+  )?.randomUUID;
+  const suffix =
+    typeof randomUUID === "function"
+      ? randomUUID.call(globalThis.crypto)
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  return `${prefix}-${suffix}`;
 }
 
 function buildSummaryTitle(items: TranscriptEntry[]) {
@@ -59,24 +84,49 @@ function buildSummaryTitle(items: TranscriptEntry[]) {
   return clipped || null;
 }
 
+function mapMeetingQuestionsToSuggestions(
+  questions: MeetingQuestionItem[] | undefined,
+): FollowupSuggestion[] {
+  if (!questions?.length) {
+    return [];
+  }
+
+  return questions.reduce<FollowupSuggestion[]>((acc, item, index) => {
+    const question = item.question?.trim();
+    if (!question) {
+      return acc;
+    }
+
+    acc.push({
+      id: item.entry_id ?? `question-${index + 1}`,
+      question,
+      status: "pending",
+    });
+    return acc;
+  }, []);
+}
+
 export default function Home() {
-  // API TODO: replace mock bootstrapping with GET /api/sessions + GET /api/prototypes
-  const [sessions, setSessions] = useState<Session[]>(sessionMock);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(
-    sessionMock[0]?.id ?? null,
-  );
-  const [sessionTitle, setSessionTitle] = useState(
-    sessionMock[0]?.title ?? "Unsaved Interview Session",
-  );
-  const [transcript, setTranscript] = useState<TranscriptEntry[]>(
-    sessionMock[0]?.transcriptHistory ?? [],
-  );
-  const [suggestions, setSuggestions] = useState<FollowupSuggestion[]>(
-    sessionMock[0]?.aiSuggestions ?? [],
-  );
+  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [sessionTitle, setSessionTitle] = useState("Unsaved Interview Session");
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [suggestions, setSuggestions] = useState<FollowupSuggestion[]>([]);
   const [focusSignal, setFocusSignal] = useState(0);
   const [isPrototypeOpen, setIsPrototypeOpen] = useState(false);
   const [prototypeModalSeed, setPrototypeModalSeed] = useState(0);
+  const [voiceState, setVoiceState] = useState<
+    "idle" | "connecting" | "listening" | "error"
+  >("idle");
+  const transcriptRef = useRef<TranscriptEntry[]>([]);
+
+  const {
+    meetingId,
+    isPostingTranscript,
+    postError,
+    postTranscript,
+    resetMeetingId,
+  } = useMeetingTranscript();
 
   const wordCount = useMemo(
     () =>
@@ -87,6 +137,10 @@ export default function Home() {
         .filter(Boolean).length,
     [transcript],
   );
+
+  useEffect(() => {
+    transcriptRef.current = transcript;
+  }, [transcript]);
 
   const setActiveTitle = (nextTitle: string) => {
     const title = nextTitle.trim() || "Unsaved Interview Session";
@@ -118,7 +172,6 @@ export default function Home() {
     currentTranscript: TranscriptEntry[],
     currentSuggestions: FollowupSuggestion[],
   ) => {
-    // API TODO: debounce + upsert active session to backend (PUT /api/sessions/:id)
     if (!sessionId) {
       return;
     }
@@ -134,11 +187,17 @@ export default function Home() {
           : session,
       ),
     );
+    void updateSession({
+      sessionId,
+      title,
+      transcriptHistory: currentTranscript,
+      aiSuggestions: currentSuggestions,
+    });
   };
 
   const handleSelectSession = (sessionId: string) => {
-    // API TODO: GET /api/sessions/:id for latest transcript/suggestions before opening
     persistSession(activeSessionId, sessionTitle, transcript, suggestions);
+    void fetchSessionById(sessionId);
     const selected = sessions.find((item) => item.id === sessionId);
     if (!selected) {
       return;
@@ -150,24 +209,27 @@ export default function Home() {
   };
 
   const handleCreateSession = () => {
-    // API TODO: autosave current draft before context switch
     persistSession(activeSessionId, sessionTitle, transcript, suggestions);
 
     const newSession: Session = {
-      id: `session-${crypto.randomUUID()}`,
+      id: createLocalId("session"),
       title: buildNewSessionTitle(sessions),
       createdAt: new Date().toISOString(),
       transcriptHistory: [],
       aiSuggestions: [],
     };
 
-    // API TODO: POST /api/sessions to create new session record and return id/title timestamps
+    void createSessionApi({
+      title: newSession.title,
+      createdAt: newSession.createdAt,
+    });
     setSessions((prev) => [newSession, ...prev]);
     setActiveSessionId(newSession.id);
     setSessionTitle(newSession.title);
     setTranscript([]);
     setSuggestions([]);
     setFocusSignal((prev) => prev + 1);
+    resetMeetingId();
   };
 
   const handleEditTranscriptLine = (lineId: string, text: string) => {
@@ -176,26 +238,89 @@ export default function Home() {
     );
     setTranscript(nextTranscript);
     maybeAutoRenameByTranscript(nextTranscript);
-    // API TODO: PATCH /api/sessions/:id/transcript/:lineId (manual transcript correction)
+    if (activeSessionId) {
+      void updateTranscriptLine({ sessionId: activeSessionId, lineId, text });
+    }
   };
 
   const handleAppendLine = (text: string) => {
-    const nextTranscript = [
-      ...transcript,
-      {
-        id: `line-${crypto.randomUUID()}`,
-        speaker: "Founder" as const,
-        text,
-        timestamp: new Date().toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-      },
-    ];
+    const newLine: TranscriptEntry = {
+      id: createLocalId("line"),
+      speaker: "Founder",
+      text,
+      timestamp: new Date().toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+    };
+    const nextTranscript = [...transcript, newLine];
     setTranscript(nextTranscript);
     maybeAutoRenameByTranscript(nextTranscript);
-    // API TODO: POST /api/sessions/:id/transcript (append user note or transcript line)
-    // API TODO: trigger AI follow-up generation (POST /api/ai/followups)
+    if (activeSessionId) {
+      void appendTranscriptLine({ sessionId: activeSessionId, line: newLine });
+    }
+  };
+
+  const handleVoiceTranscriptFull = (fullText: string) => {
+    const normalized = fullText.trim();
+    if (!normalized) {
+      return;
+    }
+
+    const timestamp = new Date().toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    let nextTranscriptSnapshot: TranscriptEntry[] = transcript;
+    let hasExistingVoiceLine = false;
+
+    setTranscript((prev: TranscriptEntry[]) => {
+      hasExistingVoiceLine = prev.some(
+        (line) => line.id === VOICE_TRANSCRIPT_LINE_ID,
+      );
+
+      const next: TranscriptEntry[] = hasExistingVoiceLine
+        ? prev.map((line) =>
+            line.id === VOICE_TRANSCRIPT_LINE_ID
+              ? { ...line, text: normalized, timestamp }
+              : line,
+          )
+        : [
+            ...prev,
+            {
+              id: VOICE_TRANSCRIPT_LINE_ID,
+              speaker: "Founder",
+              text: normalized,
+              timestamp,
+            },
+          ];
+
+      nextTranscriptSnapshot = next;
+      return next;
+    });
+
+    maybeAutoRenameByTranscript(nextTranscriptSnapshot);
+
+    if (activeSessionId) {
+      if (hasExistingVoiceLine) {
+        void updateTranscriptLine({
+          sessionId: activeSessionId,
+          lineId: VOICE_TRANSCRIPT_LINE_ID,
+          text: normalized,
+        });
+      } else {
+        void appendTranscriptLine({
+          sessionId: activeSessionId,
+          line: {
+            id: VOICE_TRANSCRIPT_LINE_ID,
+            speaker: "Founder",
+            text: normalized,
+            timestamp,
+          },
+        });
+      }
+    }
   };
 
   const handleAdoptSuggestion = (suggestionId: string) => {
@@ -208,7 +333,13 @@ export default function Home() {
     );
     setSuggestions(nextSuggestions);
     handleAppendLine(`追問補充：${target.question}`);
-    // API TODO: PATCH /api/sessions/:id/suggestions/:suggestionId { status: "adopted" }
+    if (activeSessionId) {
+      void updateSuggestionStatus({
+        sessionId: activeSessionId,
+        suggestionId,
+        status: "adopted",
+      });
+    }
   };
 
   const handleDismissSuggestion = (suggestionId: string) => {
@@ -216,7 +347,13 @@ export default function Home() {
       (item) => item.id !== suggestionId,
     );
     setSuggestions(nextSuggestions);
-    // API TODO: PATCH /api/sessions/:id/suggestions/:suggestionId { status: "dismissed" }
+    if (activeSessionId) {
+      void updateSuggestionStatus({
+        sessionId: activeSessionId,
+        suggestionId,
+        status: "dismissed",
+      });
+    }
   };
 
   const handleRenameSession = (sessionId: string) => {
@@ -229,7 +366,7 @@ export default function Home() {
         item.id === sessionId ? { ...item, title: nextTitle } : item,
       ),
     );
-    // API TODO: PATCH /api/sessions/:id { title }
+    void renameSessionApi({ sessionId, title: nextTitle });
     if (activeSessionId === sessionId) {
       setSessionTitle(nextTitle);
     }
@@ -251,7 +388,7 @@ export default function Home() {
       return;
     }
 
-    // API TODO: in production call DELETE /api/sessions/:id (hackathon demo keeps local-only delete)
+    void deleteSessionById(sessionId);
     const next = sessions.filter((item) => item.id !== sessionId);
     setSessions(next);
 
@@ -266,6 +403,52 @@ export default function Home() {
     setSuggestions(fallback?.aiSuggestions ?? []);
   };
 
+  const syncQuestionsFromTranscript = useCallback(async () => {
+    const transcriptText = transcriptRef.current
+      .map((line) => line.text.trim())
+      .filter(Boolean)
+      .join("\n");
+
+    if (!transcriptText) {
+      return;
+    }
+
+    const transcriptPost = await postTranscript({ text: transcriptText });
+    setSuggestions(
+      mapMeetingQuestionsToSuggestions(transcriptPost.result?.questions),
+    );
+  }, [postTranscript]);
+
+  useEffect(() => {
+    if (voiceState !== "listening") {
+      return;
+    }
+
+    void syncQuestionsFromTranscript().catch((error) => {
+      console.error("Initial transcript sync failed", error);
+    });
+
+    const timer = window.setInterval(() => {
+      void syncQuestionsFromTranscript().catch((error) => {
+        console.error("Auto transcript sync failed", error);
+      });
+    }, 30000);
+
+    return () => window.clearInterval(timer);
+  }, [voiceState, syncQuestionsFromTranscript]);
+
+  const handleGeneratePrototype = async () => {
+    await generatePrototype({
+      sessionId: activeSessionId,
+      transcriptWordCount: wordCount,
+    });
+    console.log("[Rapid Prototyping AI Studio] open modal", {
+      meetingId,
+    });
+    setPrototypeModalSeed((prev) => prev + 1);
+    setIsPrototypeOpen(true);
+  };
+
   return (
     <div className="min-h-screen bg-zinc-950 text-slate-100">
       <div className="flex h-screen">
@@ -278,7 +461,7 @@ export default function Home() {
           onRenameSession={handleRenameSession}
           onDeleteSession={handleDeleteSession}
           onRestorePrototype={(prototypeId) => {
-            // API TODO: GET /api/prototypes/:id and hydrate current workspace with stored snapshot
+            void restorePrototypeById(prototypeId);
             window.alert(`Prototype ${prototypeId} restored (mock).`);
           }}
         />
@@ -290,7 +473,11 @@ export default function Home() {
               onChangeTitle={setActiveTitle}
               onResetSession={handleCreateSession}
             />
-            <VoiceInput key={focusSignal} />
+            <VoiceInput
+              key={focusSignal}
+              onTranscriptFinal={handleVoiceTranscriptFull}
+              onConnectionChange={setVoiceState}
+            />
             <TranscriptStream
               transcript={transcript}
               onEditLine={handleEditTranscriptLine}
@@ -300,29 +487,51 @@ export default function Home() {
             <div className="glass-panel rounded-2xl p-4">
               <Button
                 className="w-full py-3 font-semibold"
-                // API TODO: POST /api/prototypes/generate with current transcript + suggestion context
-                onClick={() => {
-                  console.log("[Rapid Prototyping AI Studio] open modal");
-                  setPrototypeModalSeed((prev) => prev + 1);
-                  setIsPrototypeOpen(true);
-                }}
+                disabled={isPostingTranscript}
+                onClick={() => void handleGeneratePrototype()}
               >
-                生成 Prototype (Generate Prototype)
+                {isPostingTranscript
+                  ? "同步逐字稿中..."
+                  : "生成 Prototype (Generate Prototype)"}
               </Button>
               <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
                 <span>{wordCount} words in transcript</span>
                 <span className="inline-flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                  Voice API Connected
+                  <span
+                    className={`h-2 w-2 rounded-full ${
+                      voiceState === "listening"
+                        ? "bg-emerald-400"
+                        : voiceState === "connecting"
+                          ? "bg-amber-300"
+                          : voiceState === "error"
+                            ? "bg-rose-400"
+                            : "bg-slate-500"
+                    }`}
+                  />
+                  {voiceState === "listening"
+                    ? "Deepgram Live"
+                    : voiceState === "connecting"
+                      ? "Connecting..."
+                      : voiceState === "error"
+                        ? "Voice Error"
+                        : "Voice Idle"}
                 </span>
               </div>
+              <div className="mt-1 text-[11px] text-slate-500">
+                meeting_id: {meetingId}
+              </div>
+              {postError && (
+                <div className="mt-1 text-[11px] text-rose-300">
+                  Transcript POST 失敗：{postError}
+                </div>
+              )}
             </div>
           </section>
 
           <section className="min-w-0 flex-1">
             <FollowupCards
-              suggestions={transcript.length > 0 ? suggestions : []}
-              isAnalyzing={transcript.length > 0}
+              suggestions={suggestions}
+              isAnalyzing={isPostingTranscript || transcript.length > 0}
               onAdoptSuggestion={handleAdoptSuggestion}
               onDismissSuggestion={handleDismissSuggestion}
             />

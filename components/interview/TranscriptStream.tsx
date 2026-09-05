@@ -2,13 +2,13 @@
  * @Author: Fangyu Kung
  * @Date: 2026-09-05 11:43:56
  * @LastEditors: Do not edit
- * @LastEditTime: 2026-09-05 12:36:19
+ * @LastEditTime: 2026-09-05 15:10:49
  * @FilePath: /beachcomber-fe/components/interview/TranscriptStream.tsx
  */
 "use client";
 
-import { useEffect, useRef } from "react";
 import type { TranscriptEntry } from "@/lib/studio-types";
+import { useEffect, useRef } from "react";
 
 type TranscriptStreamProps = {
   transcript: TranscriptEntry[];
@@ -20,7 +20,6 @@ type TranscriptStreamProps = {
 export function TranscriptStream({
   transcript,
   onEditLine,
-  onAppendLine,
   autoFocusSignal,
 }: TranscriptStreamProps) {
   const quickInputRef = useRef<HTMLTextAreaElement>(null);
@@ -61,29 +60,6 @@ export function TranscriptStream({
             </div>
           ))
         )}
-      </div>
-
-      <div className="mt-3 space-y-2">
-        <textarea
-          ref={quickInputRef}
-          placeholder="手動補充訪談資訊..."
-          className="h-20 w-full resize-none rounded-xl border border-white/10 bg-slate-950/80 p-3 text-sm text-slate-100 outline-none focus:border-indigo-500"
-          onKeyDown={(event) => {
-            if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
-              const target = event.currentTarget;
-              const value = target.value.trim();
-              if (!value) {
-                return;
-              }
-              onAppendLine(value);
-              // API TODO: optional autosave event for quick notes (POST /api/sessions/:id/transcript)
-              target.value = "";
-            }
-          }}
-        />
-        <p className="text-xs text-slate-500">
-          按 `Cmd/Ctrl + Enter` 可快速加入逐字稿。
-        </p>
       </div>
     </div>
   );

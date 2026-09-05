@@ -1,7 +1,52 @@
 "use client";
 
+import {
+  connectDeepgramLive,
+  sendDeepgramControlMessage,
+  type DeepgramLiveResultMessage,
+} from "@/lib/api/deepgram";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+
+type VoiceConnectionState = "idle" | "connecting" | "listening" | "error";
+
+type VoiceInputProps = {
+  // Emits accumulated transcript text for the current recording session.
+  onTranscriptFinal?: (text: string) => void;
+  onConnectionChange?: (state: VoiceConnectionState) => void;
+};
+
+const DEEPGRAM_API_KEY = process.env.NEXT_PUBLIC_DEEPGRAM_API_KEY;
+const MOCK_TRANSCRIPTS = [
+  "我們希望先定義 MVP 的核心流程，避免 scope 過大。",
+  "第一版請優先支援 dashboard 與登入註冊流程。",
+  "Prototype 需要同時輸出 PM 與 Frontend 可執行規格。",
+  "請把風險與技術限制整理成可追蹤項目。",
+];
+const END_PUNCTUATION_REGEX = /[。！？.!?，、；;：:]$/;
+const START_PUNCTUATION_REGEX = /^[，。！？.!?、；;：:]/;
+
+function appendChunkWithPunctuation(currentText: string, nextChunk: string) {
+  const incoming = nextChunk.trim();
+  if (!incoming) {
+    return currentText;
+  }
+
+  if (!currentText) {
+    return incoming;
+  }
+
+  const base = currentText.trim();
+  if (END_PUNCTUATION_REGEX.test(base)) {
+    return START_PUNCTUATION_REGEX.test(incoming)
+      ? `${base}${incoming.slice(1)}`
+      : `${base}${incoming}`;
+  }
+
+  return START_PUNCTUATION_REGEX.test(incoming)
+    ? `${base}${incoming}`
+    : `${base}，${incoming}`;
+}
 
 function formatSeconds(total: number) {
   const minutes = Math.floor(total / 60)
@@ -11,9 +56,26 @@ function formatSeconds(total: number) {
   return `${minutes}:${seconds}`;
 }
 
-export function VoiceInput() {
+export function VoiceInput({
+  onTranscriptFinal,
+  onConnectionChange,
+}: VoiceInputProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
+  const [statusText, setStatusText] = useState("Ready to listen");
+
+  const wsRef = useRef<WebSocket | null>(null);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const keepAliveTimerRef = useRef<number | null>(null);
+  const mockTimerRef = useRef<number | null>(null);
+  const mockCursorRef = useRef(0);
+  const fullTranscriptRef = useRef("");
+  const lastFinalChunkRef = useRef("");
+
+  const pushConnectionState = (state: VoiceConnectionState) => {
+    onConnectionChange?.(state);
+  };
 
   useEffect(() => {
     if (!isRecording) {
@@ -27,6 +89,175 @@ export function VoiceInput() {
     return () => window.clearInterval(timer);
   }, [isRecording]);
 
+  useEffect(() => {
+    return () => {
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      if (wsRef.current?.readyState === WebSocket.OPEN) {
+        sendDeepgramControlMessage(wsRef.current, "CloseStream");
+        wsRef.current.close();
+      }
+      if (keepAliveTimerRef.current) {
+        window.clearInterval(keepAliveTimerRef.current);
+      }
+      if (mockTimerRef.current) {
+        window.clearInterval(mockTimerRef.current);
+      }
+    };
+  }, []);
+
+  const stopStreaming = () => {
+    const ws = wsRef.current;
+    const recorder = mediaRecorderRef.current;
+    const stream = mediaStreamRef.current;
+
+    if (keepAliveTimerRef.current) {
+      window.clearInterval(keepAliveTimerRef.current);
+      keepAliveTimerRef.current = null;
+    }
+    if (mockTimerRef.current) {
+      window.clearInterval(mockTimerRef.current);
+      mockTimerRef.current = null;
+    }
+
+    if (recorder && recorder.state !== "inactive") {
+      recorder.stop();
+    }
+    stream?.getTracks().forEach((track) => track.stop());
+
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      sendDeepgramControlMessage(ws, "Finalize");
+      sendDeepgramControlMessage(ws, "CloseStream");
+      ws.close();
+    }
+
+    mediaRecorderRef.current = null;
+    mediaStreamRef.current = null;
+    wsRef.current = null;
+    fullTranscriptRef.current = "";
+    lastFinalChunkRef.current = "";
+    setIsRecording(false);
+    setSeconds(0);
+    setStatusText("Ready to listen");
+    pushConnectionState("idle");
+  };
+
+  const startStreaming = async () => {
+    fullTranscriptRef.current = "";
+    lastFinalChunkRef.current = "";
+
+    if (!DEEPGRAM_API_KEY) {
+      setIsRecording(true);
+      setSeconds(0);
+      setStatusText("Demo Listening... (mock)");
+      pushConnectionState("listening");
+
+      mockTimerRef.current = window.setInterval(() => {
+        const mockText =
+          MOCK_TRANSCRIPTS[mockCursorRef.current % MOCK_TRANSCRIPTS.length];
+        mockCursorRef.current += 1;
+        fullTranscriptRef.current = appendChunkWithPunctuation(
+          fullTranscriptRef.current,
+          mockText,
+        );
+        onTranscriptFinal?.(fullTranscriptRef.current);
+      }, 2500);
+      return;
+    }
+
+    setStatusText("Connecting to Deepgram...");
+    pushConnectionState("connecting");
+
+    try {
+      const mediaStream = await navigator.mediaDevices.getUserMedia({
+        audio: true,
+      });
+      mediaStreamRef.current = mediaStream;
+
+      const ws = connectDeepgramLive({
+        apiKey: DEEPGRAM_API_KEY,
+        model: "nova-3",
+        language: "zh-TW",
+        interimResults: true,
+        smartFormat: true,
+        punctuate: true,
+        onResult: (payload: DeepgramLiveResultMessage) => {
+          const transcript =
+            payload.channel?.alternatives?.[0]?.transcript?.trim();
+          if (!transcript) {
+            return;
+          }
+
+          if (payload.is_final) {
+            if (transcript === lastFinalChunkRef.current) {
+              return;
+            }
+            lastFinalChunkRef.current = transcript;
+            fullTranscriptRef.current = appendChunkWithPunctuation(
+              fullTranscriptRef.current,
+              transcript,
+            );
+            onTranscriptFinal?.(fullTranscriptRef.current);
+          }
+        },
+        onError: () => {
+          setStatusText("Voice stream error");
+          pushConnectionState("error");
+        },
+        onClose: () => {
+          mediaRecorderRef.current = null;
+          mediaStreamRef.current = null;
+          wsRef.current = null;
+          if (keepAliveTimerRef.current) {
+            window.clearInterval(keepAliveTimerRef.current);
+            keepAliveTimerRef.current = null;
+          }
+          setIsRecording(false);
+          setSeconds(0);
+          setStatusText("Ready to listen");
+          pushConnectionState("idle");
+          fullTranscriptRef.current = "";
+          lastFinalChunkRef.current = "";
+        },
+      });
+      wsRef.current = ws;
+
+      ws.onopen = () => {
+        const mimeType = MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? "audio/webm;codecs=opus"
+          : "audio/webm";
+        const mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+        mediaRecorderRef.current = mediaRecorder;
+
+        mediaRecorder.ondataavailable = async (event) => {
+          if (!event.data || event.data.size === 0) {
+            return;
+          }
+          if (ws.readyState !== WebSocket.OPEN) {
+            return;
+          }
+          const buffer = await event.data.arrayBuffer();
+          ws.send(buffer);
+        };
+
+        mediaRecorder.start(250);
+
+        keepAliveTimerRef.current = window.setInterval(() => {
+          sendDeepgramControlMessage(ws, "KeepAlive");
+        }, 8000);
+
+        setIsRecording(true);
+        setStatusText("Listening...");
+        pushConnectionState("listening");
+      };
+
+      // events are handled by lib/api/deepgram callbacks
+    } catch {
+      setStatusText("Microphone permission denied");
+      pushConnectionState("error");
+    }
+  };
+
   const bars = useMemo(() => new Array(12).fill(0), []);
 
   return (
@@ -36,9 +267,7 @@ export function VoiceInput() {
           <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
             Voice Input Controller
           </p>
-          <p className="text-sm text-slate-300">
-            {isRecording ? "Listening..." : "Ready to listen"}
-          </p>
+          <p className="text-sm text-slate-300">{statusText}</p>
         </div>
         <div className="flex items-center gap-3">
           <span className="font-mono text-sm text-slate-100">
@@ -47,13 +276,9 @@ export function VoiceInput() {
           <motion.button
             type="button"
             whileTap={{ scale: 0.95 }}
-            onClick={() => {
-              // API TODO: start/stop streaming speech recognition
-              // - start: request mic token/session (POST /api/voice/session)
-              // - stream: websocket/sse audio chunks to STT
-              // - stop: finalize and return transcript segments
-              setIsRecording((prev) => !prev);
-            }}
+            onClick={() =>
+              isRecording ? stopStreaming() : void startStreaming()
+            }
             className={`flex h-12 w-12 items-center justify-center rounded-full border text-xl ${
               isRecording
                 ? "border-rose-400 bg-rose-500/20 text-rose-200 shadow-[0_0_20px_rgba(244,63,94,0.45)]"

@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/button";
+import { exportSpecsDocument } from "@/lib/api";
 import type { SpecMap, SpecRole } from "@/lib/studio-types";
 import { useMemo, useState } from "react";
 
@@ -55,9 +56,10 @@ export function SpecViewer({ specs }: SpecViewerProps) {
           <Button
             variant="outline"
             className="py-1.5 text-xs"
-            onClick={() =>
-              window.alert("API TODO: 匯出 PDF/Doc（目前為 demo mock）")
-            }
+            onClick={() => {
+              void exportSpecsDocument({ format: "pdf", role: activeRole });
+              window.alert("已觸發匯出 API（demo mock）");
+            }}
           >
             ⬇️ 匯出 PDF/Doc
           </Button>

@@ -1,0 +1,52 @@
+import { mockMeetingTranscriptResponse } from "@/lib/mock-data";
+
+export type MeetingTranscriptPayload = {
+  text: string;
+};
+
+export type MeetingQuestionItem = {
+  entry_id?: string;
+  question?: string;
+};
+
+export type MeetingTranscriptResponse = {
+  round?: number;
+  created_at?: string;
+  path?: string;
+  verified_count?: number;
+  questions?: MeetingQuestionItem[];
+};
+
+export async function postMeetingTranscript(
+  meetingId: string,
+  payload: MeetingTranscriptPayload,
+): Promise<MeetingTranscriptResponse | null> {
+  if (process.env.NEXT_PUBLIC_USE_MOCK_MEETING_API === "true") {
+    return {
+      ...mockMeetingTranscriptResponse,
+      created_at: new Date().toISOString(),
+      path: `mock://meetings/${meetingId}/transcript`,
+    } as MeetingTranscriptResponse;
+  }
+
+  const response = await fetch(
+    `/api/meetings/${encodeURIComponent(meetingId)}/transcript`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`POST /api/meetings/${meetingId}/transcript failed`);
+  }
+
+  if (response.status === 204) {
+    return null;
+  }
+
+  return (await response.json()) as MeetingTranscriptResponse;
+}
