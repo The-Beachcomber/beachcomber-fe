@@ -16,9 +16,6 @@ type VoiceInputProps = {
   onConnectionChange?: (state: VoiceConnectionState) => void;
 };
 
-// const DEEPGRAM_API_KEY = process.env.DEEPGRAM_API_KEY;
-const DEEPGRAM_API_KEY = "528584e3e8c1f032b8fb8b3cbb215ecf6f70def5"; // Important: This is a test key for development purposes.
-
 const END_PUNCTUATION_REGEX = /[。！？.!?，、；;：:]$/;
 const START_PUNCTUATION_REGEX = /^[，。！？.!?、；;：:]/;
 
@@ -141,22 +138,33 @@ export function VoiceInput({
     fullTranscriptRef.current = "";
     lastFinalChunkRef.current = "";
 
-    if (!DEEPGRAM_API_KEY) {
-      alert("DEEPGRAM_API_KEY is not set");
-      return;
-    }
-
     setStatusText("Connecting to Deepgram...");
     pushConnectionState("connecting");
 
+    let mediaStream: MediaStream;
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
+      mediaStream = await navigator.mediaDevices.getUserMedia({
         audio: true,
       });
       mediaStreamRef.current = mediaStream;
+    } catch {
+      setStatusText("Microphone permission denied");
+      pushConnectionState("error");
+      return;
+    }
+
+    try {
+      const keyResponse = await fetch("/api/deepgram/key", {
+        method: "POST",
+        cache: "no-store",
+      });
+      const keyPayload = (await keyResponse.json()) as { apiKey?: string };
+      if (!keyResponse.ok || !keyPayload.apiKey) {
+        throw new Error("Deepgram API key is unavailable");
+      }
 
       const ws = connectDeepgramLive({
-        apiKey: DEEPGRAM_API_KEY,
+        apiKey: keyPayload.apiKey,
         model: "nova-3",
         language: "zh-TW",
         interimResults: true,
@@ -234,7 +242,9 @@ export function VoiceInput({
 
       // events are handled by lib/api/deepgram callbacks
     } catch {
-      setStatusText("Microphone permission denied");
+      mediaStream.getTracks().forEach((track) => track.stop());
+      mediaStreamRef.current = null;
+      setStatusText("Voice service unavailable");
       pushConnectionState("error");
     }
   };
