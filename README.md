@@ -125,26 +125,25 @@ gcloud run deploy beachcomber-be \
 ## 作品展示
 
 - 作品展示網址：https://beachcomber-fe-1021189182492.asia-east1.run.app/
-- 評選影片：（待補上連結）
+- 評選影片：https://youtu.be/ZvLAx_R2K0A
 
 ## 限制與未來工作
 
 **已知限制**
 
-- **語音金鑰仍是長期金鑰**：金鑰已移出原始碼、改由 Route Handler 從環境變數下發，但回給瀏覽器的是原始 API key 而非短期 token，任何開得起頁面的人都能取得。正式使用應改為 Deepgram 的臨時金鑰機制。
-- **訪談記憶不持久**：後端記憶存在 process 記憶體，重啟或多實例即遺失，因此 Cloud Run 被綁在單一實例、無法水平擴充。
-- **追問不保證去重**：提示詞的規則是「已在逐字稿中得到明確答案才不再問」，因此語意相近的問題仍可能重複出現，UI 不能假設每輪問題互斥。
+- **語音金鑰仍是長期金鑰**：金鑰已移出原始碼、改由 Route Handler 從環境變數下發，但回給瀏覽器的是原始 API key 而非短期 token，任何開得起頁面的人都能取得。正式發行版本將調整系統架構，將改為 Deepgram 的短效期金鑰機制，做到0-Trust資安防護機制。
+- **訪談記憶不持久**：現行討論記憶存在 process 記憶體中，重啟實例即遺失當前討論記憶，因此需要解決當前系統架構部屬在 Cloud Run 被綁在單一實例的系統現行架構限制。
+- **追問不保證去重**：提示詞的規則是「已在逐字稿中得到明確答案才不再問」，然而因討論過程中的議題反覆討論，語意相近的問題仍可能重複出現，UI 不能且不應該假設每輪問題互斥。
 - **`verified_count` 恆為 0**：目前沒有事實查證機制，此欄位僅為介面預留。
 - **Session 相關 API 尚未落地**：`lib/api/session.ts`、`prototype.ts`、`spec.ts` 中標註 `API TODO` 的函式仍回傳本地 Promise，重新整理後歷史紀錄不會保留；待接的端點清單見 `docs/api-integration-map.md`。
 - **後端 CORS 全開、Hermes 無需驗證**：Demo 環境刻意如此，正式環境必須收斂 origin 並補上 auth header（`_post_prototype()` 與 `ask_specs()` 目前未送）。
 - **產出時間偏長**：Prototype 約 20～40 秒、Spec 約 63～68 秒，目前以 loading state 處理，尚無串流式回饋。
 
 **未來工作**
-
-- Session／逐字稿／Prototype Archive 落地到資料庫，讓訪談紀錄可回溯與分享。
-- Spec 匯出 PDF／Doc（`POST /api/specs/export` 已預留）。
-- 多人同時參與同一場訪談（發言者分離、協作編輯逐字稿）。
-- 依使用者回饋迭代 Prototype，而非每次從逐字稿重新產生。
+- 提前透過 .md 進行想要討論的對應領域domain的提前注入，在會議建立時讓AI agent同步建立對應的背景資料認知，擴增服務在各domain的適用性與認知的專業性
+- 同樣在會議開始前，甚至是會議進行中新增添加角色(role)與其對應的Template，來保持彈性職務範圍所需SPEC產出，例如System Architecture、Data Analytics
+- Session／逐字稿／Prototype Archive 落地到資料庫，讓訪談紀錄可回溯與分享；依使用者回饋迭代 Prototype，而非每次從逐字稿重新產生。
+- 多人同時參與同一場訪談（發言者分離、協作編輯逐字稿），且 Spec 匯出 PDF／Doc（`POST /api/specs/export` 已預留）。
 
 ## 第三方服務、資料與素材
 
