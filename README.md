@@ -124,7 +124,7 @@ gcloud run deploy beachcomber-be \
 
 ## 作品展示
 
-- 作品展示網址：https://beachcomber-l09v59cby-kungfangyus-projects.vercel.app/
+- 作品展示網址：https://beachcomber-fe-1021189182492.asia-east1.run.app/
 - 評選影片：（待補上連結）
 
 ## 限制與未來工作
